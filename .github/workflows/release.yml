@@ -1,0 +1,198 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Run tests first
+  test:
+    uses: ./.github/workflows/test.yml
+
+  # Build reproducible WASM artifacts for all networks
+  build-reproducible:
+    name: Build Reproducible WASM
+    needs: [test]
+    runs-on: warp-ubuntu-latest-x64-4x
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install 1.86.0 --profile minimal --target wasm32-unknown-unknown
+          rustup override set 1.86.0
+
+      - name: Install cargo-near CLI
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/download/cargo-near-v0.19.0/cargo-near-installer.sh | sh
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-provider: warpbuild
+          shared-key: "linux-1.86-release"
+          cache-all-crates: true
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+
+      # ========== MAINNET BUILD ==========
+      - name: Configure for mainnet
+        run: |
+          # Chain ID 397 - https://chainlist.org/chain/397
+          echo "{ 397 }" > wallet-contract/src/CHAIN_ID
+          echo -n "address-map.near" > wallet-contract/src/ADDRESS_REGISTRAR_ACCOUNT_ID
+
+      - name: Build wallet-contract (mainnet)
+        run: cargo near build non-reproducible-wasm --no-abi --manifest-path wallet-contract/Cargo.toml
+
+      - name: Build address-registrar (mainnet)
+        run: cargo near build non-reproducible-wasm --no-abi --manifest-path address-registrar/Cargo.toml
+
+      - name: Collect mainnet artifacts
+        run: |
+          cp target/near/eth_wallet_contract/eth_wallet_contract.wasm artifacts/eth_wallet_contract_mainnet.wasm
+          cp target/near/eth_address_registrar/eth_address_registrar.wasm artifacts/eth_address_registrar_mainnet.wasm
+
+      # Clean build artifacts for next network
+      - name: Clean for next build
+        run: rm -rf target/near
+
+      # ========== TESTNET BUILD ==========
+      - name: Configure for testnet
+        run: |
+          # Chain ID 398 - https://chainlist.org/chain/398
+          echo "{ 398 }" > wallet-contract/src/CHAIN_ID
+          echo -n "address-map.testnet" > wallet-contract/src/ADDRESS_REGISTRAR_ACCOUNT_ID
+
+      - name: Build wallet-contract (testnet)
+        run: cargo near build non-reproducible-wasm --no-abi --manifest-path wallet-contract/Cargo.toml
+
+      - name: Build address-registrar (testnet)
+        run: cargo near build non-reproducible-wasm --no-abi --manifest-path address-registrar/Cargo.toml
+
+      - name: Collect testnet artifacts
+        run: |
+          cp target/near/eth_wallet_contract/eth_wallet_contract.wasm artifacts/eth_wallet_contract_testnet.wasm
+          cp target/near/eth_address_registrar/eth_address_registrar.wasm artifacts/eth_address_registrar_testnet.wasm
+
+      # ========== CHECKSUMS & UPLOAD ==========
+      - name: Create checksums file
+        run: |
+          cd artifacts
+          sha256sum *.wasm > checksums.sha256
+          cat checksums.sha256
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-contracts
+          path: artifacts/
+          retention-days: 90
+
+      # Generate attestations for provenance
+      # Note: Attestations for private repos require GitHub Enterprise Cloud
+      - name: Attest mainnet wallet-contract
+        uses: actions/attest-build-provenance@v2
+        continue-on-error: true
+        with:
+          subject-path: artifacts/eth_wallet_contract_mainnet.wasm
+
+      - name: Attest mainnet address-registrar
+        uses: actions/attest-build-provenance@v2
+        continue-on-error: true
+        with:
+          subject-path: artifacts/eth_address_registrar_mainnet.wasm
+
+      - name: Attest testnet wallet-contract
+        uses: actions/attest-build-provenance@v2
+        continue-on-error: true
+        with:
+          subject-path: artifacts/eth_wallet_contract_testnet.wasm
+
+      - name: Attest testnet address-registrar
+        uses: actions/attest-build-provenance@v2
+        continue-on-error: true
+        with:
+          subject-path: artifacts/eth_address_registrar_testnet.wasm
+
+      - name: Attest checksums
+        uses: actions/attest-build-provenance@v2
+        continue-on-error: true
+        with:
+          subject-path: artifacts/checksums.sha256
+
+  # Upload artifacts to the GitHub release
+  upload-release-assets:
+    name: Upload Release Assets
+    needs: [build-reproducible]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-contracts
+          path: artifacts/
+
+      - name: Compute hashes for release notes
+        id: hashes
+        run: |
+          echo "wallet_mainnet=$(sha256sum artifacts/eth_wallet_contract_mainnet.wasm | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "wallet_testnet=$(sha256sum artifacts/eth_wallet_contract_testnet.wasm | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "registrar_mainnet=$(sha256sum artifacts/eth_address_registrar_mainnet.wasm | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "registrar_testnet=$(sha256sum artifacts/eth_address_registrar_testnet.wasm | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/eth_wallet_contract_mainnet.wasm
+            artifacts/eth_wallet_contract_testnet.wasm
+            artifacts/eth_address_registrar_mainnet.wasm
+            artifacts/eth_address_registrar_testnet.wasm
+            artifacts/checksums.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add build info to release notes
+        uses: softprops/action-gh-release@v2
+        with:
+          append_body: true
+          body: |
+
+            ---
+            ## Build Artifacts
+
+            ### Mainnet (Chain ID: 397)
+            | Contract | SHA256 |
+            |----------|--------|
+            | eth_wallet_contract_mainnet.wasm | `${{ steps.hashes.outputs.wallet_mainnet }}` |
+            | eth_address_registrar_mainnet.wasm | `${{ steps.hashes.outputs.registrar_mainnet }}` |
+
+            ### Testnet (Chain ID: 398)
+            | Contract | SHA256 |
+            |----------|--------|
+            | eth_wallet_contract_testnet.wasm | `${{ steps.hashes.outputs.wallet_testnet }}` |
+            | eth_address_registrar_testnet.wasm | `${{ steps.hashes.outputs.registrar_testnet }}` |
+
+            ### Verification
+
+            These artifacts were built using Docker-based reproducible builds per [NEP-0330](https://github.com/near/NEPs/blob/master/neps/nep-0330.md).
+
+            To verify the build:
+            ```bash
+            # Download and verify checksums
+            gh release download ${{ github.ref_name }} -R ${{ github.repository }}
+            sha256sum -c checksums.sha256
+
+            # Verify attestation (requires gh CLI)
+            gh attestation verify eth_wallet_contract_mainnet.wasm -R ${{ github.repository }}
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

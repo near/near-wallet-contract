@@ -1,0 +1,26 @@
+[package]
+name = "eth-address-registrar"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# NEP-330 Reproducible Build Configuration
+# See: https://github.com/near/NEPs/blob/master/neps/nep-0330.md
+[package.metadata.near.reproducible_build]
+# Docker image for reproducible builds
+image = "sourcescan/cargo-near:0.19.0-rust-1.86.0"
+# Image digest for pinned reproducibility
+image_digest = "sha256:772638e343baeeea24e49062c7d424274f3441452cc06ce97fc4e5695b19fecc"
+# Environment variables to pass through (if any)
+passed_env = []
+# Build command inside the container
+container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "--locked", "--no-abi"]
+
+[dependencies]
+hex.workspace = true
+near-sdk.workspace = true
