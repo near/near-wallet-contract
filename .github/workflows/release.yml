@@ -1,8 +1,9 @@
 name: Release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -124,9 +125,9 @@ jobs:
         with:
           subject-path: artifacts/checksums.sha256
 
-  # Upload artifacts to the GitHub release
-  upload-release-assets:
-    name: Upload Release Assets
+  # Create the GitHub release with artifacts attached.
+  publish-release:
+    name: Publish Release
     needs: [build-reproducible]
     runs-on: ubuntu-latest
     steps:
@@ -144,25 +145,22 @@ jobs:
           echo "registrar_mainnet=$(sha256sum artifacts/eth_address_registrar_mainnet.wasm | cut -d' ' -f1)" >> $GITHUB_OUTPUT
           echo "registrar_testnet=$(sha256sum artifacts/eth_address_registrar_testnet.wasm | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
-      - name: Upload to release
+      # Create the GitHub release with assets and notes in a single call.
+      # Immutable releases require all assets to be attached at creation time;
+      # we cannot mutate the release after publish (see PR #1 follow-up).
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          # Pre-release if the tag has a semver hyphen suffix (e.g. v0.1.1-rc.1).
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
           files: |
             artifacts/eth_wallet_contract_mainnet.wasm
             artifacts/eth_wallet_contract_testnet.wasm
             artifacts/eth_address_registrar_mainnet.wasm
             artifacts/eth_address_registrar_testnet.wasm
             artifacts/checksums.sha256
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Add build info to release notes
-        uses: softprops/action-gh-release@v2
-        with:
-          append_body: true
           body: |
-
-            ---
             ## Build Artifacts
 
             ### Mainnet (Chain ID: 397)
