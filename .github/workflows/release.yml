@@ -42,7 +42,7 @@ jobs:
           # Chain ID 397 - https://chainlist.org/chain/397
           echo "{ 397 }" > wallet-contract/src/CHAIN_ID
           echo -n "address-map.near" > wallet-contract/src/ADDRESS_REGISTRAR_ACCOUNT_ID
-          git add -A && git diff --cached --quiet || git commit -m "mainnet config"
+          git add wallet-contract/src/CHAIN_ID wallet-contract/src/ADDRESS_REGISTRAR_ACCOUNT_ID && git diff --cached --quiet || git commit -m "mainnet config"
 
       - name: Build wallet-contract (mainnet)
         run: cargo near build reproducible-wasm --manifest-path wallet-contract/Cargo.toml
