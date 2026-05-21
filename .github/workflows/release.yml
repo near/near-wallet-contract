@@ -65,7 +65,7 @@ jobs:
           # Chain ID 398 - https://chainlist.org/chain/398
           echo "{ 398 }" > wallet-contract/src/CHAIN_ID
           echo -n "address-map.testnet" > wallet-contract/src/ADDRESS_REGISTRAR_ACCOUNT_ID
-          git add -A && git commit -m "testnet config"
+          git add wallet-contract/src/CHAIN_ID wallet-contract/src/ADDRESS_REGISTRAR_ACCOUNT_ID && git diff --cached --quiet || git commit -m "testnet config"
 
       - name: Build wallet-contract (testnet)
         run: cargo near build reproducible-wasm --manifest-path wallet-contract/Cargo.toml
