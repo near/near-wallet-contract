@@ -25,19 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        run: |
-          rustup toolchain install 1.86.0 --profile minimal --target wasm32-unknown-unknown
-          rustup override set 1.86.0
-
       - name: Install cargo-near CLI
         run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/download/cargo-near-v0.19.0/cargo-near-installer.sh | sh
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-provider: warpbuild
-          shared-key: "linux-1.86-release"
-          cache-all-crates: true
+      - name: Configure git for CI
+        run: |
+          git config user.email "ci@near.org"
+          git config user.name "CI"
 
       - name: Create artifacts directory
         run: mkdir -p artifacts
@@ -48,12 +42,13 @@ jobs:
           # Chain ID 397 - https://chainlist.org/chain/397
           echo "{ 397 }" > wallet-contract/src/CHAIN_ID
           echo -n "address-map.near" > wallet-contract/src/ADDRESS_REGISTRAR_ACCOUNT_ID
+          git add wallet-contract/src/CHAIN_ID wallet-contract/src/ADDRESS_REGISTRAR_ACCOUNT_ID && git diff --cached --quiet || git commit -m "mainnet config"
 
       - name: Build wallet-contract (mainnet)
-        run: cargo near build non-reproducible-wasm --no-abi --manifest-path wallet-contract/Cargo.toml
+        run: cargo near build reproducible-wasm --manifest-path wallet-contract/Cargo.toml
 
       - name: Build address-registrar (mainnet)
-        run: cargo near build non-reproducible-wasm --no-abi --manifest-path address-registrar/Cargo.toml
+        run: cargo near build reproducible-wasm --manifest-path address-registrar/Cargo.toml
 
       - name: Collect mainnet artifacts
         run: |
@@ -70,12 +65,13 @@ jobs:
           # Chain ID 398 - https://chainlist.org/chain/398
           echo "{ 398 }" > wallet-contract/src/CHAIN_ID
           echo -n "address-map.testnet" > wallet-contract/src/ADDRESS_REGISTRAR_ACCOUNT_ID
+          git add wallet-contract/src/CHAIN_ID wallet-contract/src/ADDRESS_REGISTRAR_ACCOUNT_ID && git diff --cached --quiet || git commit -m "testnet config"
 
       - name: Build wallet-contract (testnet)
-        run: cargo near build non-reproducible-wasm --no-abi --manifest-path wallet-contract/Cargo.toml
+        run: cargo near build reproducible-wasm --manifest-path wallet-contract/Cargo.toml
 
       - name: Build address-registrar (testnet)
-        run: cargo near build non-reproducible-wasm --no-abi --manifest-path address-registrar/Cargo.toml
+        run: cargo near build reproducible-wasm --manifest-path address-registrar/Cargo.toml
 
       - name: Collect testnet artifacts
         run: |
