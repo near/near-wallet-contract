@@ -18,7 +18,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub fn gas(&self) -> Gas {
+    pub const fn gas(&self) -> Gas {
         match self {
             Self::FunctionCall(fn_call) => fn_call.gas,
             // 2 Tgas is sufficient for any non-function call action

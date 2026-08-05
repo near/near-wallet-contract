@@ -238,16 +238,13 @@ pub fn keccak256(bytes: &[u8]) -> [u8; 32] {
 }
 
 fn parse_target(target: &AccountId, current_address: Address) -> TargetKind<'_> {
-    match extract_address(target) {
-        Ok(address) => {
-            if address == current_address {
-                TargetKind::CurrentAccount
-            } else {
-                TargetKind::EthImplicit(address)
-            }
+    extract_address(target).map_or(TargetKind::OtherNearAccount(target), |address| {
+        if address == current_address {
+            TargetKind::CurrentAccount
+        } else {
+            TargetKind::EthImplicit(address)
         }
-        Err(_) => TargetKind::OtherNearAccount(target),
-    }
+    })
 }
 
 fn parse_tx_data(
