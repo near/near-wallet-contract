@@ -589,6 +589,10 @@ fn create_ban_relayer_promise(current_account_id: AccountId) -> Promise {
         )
 }
 
+// This trait is used in the code above, but the `ext_contract`
+// proc macro must generate a different version of it, so the compiler
+// does not notice this is used.
+#[allow(dead_code)]
 #[near_sdk::ext_contract(ext_registrar)]
 trait AddressRegistrar {
     fn lookup(&self, address: String) -> Option<AccountId>;

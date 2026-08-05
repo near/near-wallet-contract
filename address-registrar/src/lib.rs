@@ -1,3 +1,5 @@
+#![allow(clippy::use_self)]
+
 use near_sdk::{
     AccountId, BorshStorageKey, NearToken, PanicOnDefault, env, near,
     store::{LookupMap, lookup_map::Entry},
