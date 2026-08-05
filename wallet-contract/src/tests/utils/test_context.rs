@@ -6,12 +6,14 @@ use crate::{
     types::{Action, ExecuteResponse},
 };
 use aurora_engine_transactions::EthTransactionKind;
-use aurora_engine_types::types::Wei;
-use ethabi::Address;
+use aurora_engine_types::{H160 as Address, types::Wei};
+use near_jsonrpc_primitives::types::transactions::TransactionInfo;
+use near_primitives::{hash::CryptoHash, views::TxExecutionStatus};
 use near_sdk::json_types::U64;
 use near_workspaces::{
     Account, Contract, Worker,
     network::Sandbox,
+    operations::TransactionStatus,
     result::ExecutionFinalResult,
     types::{KeyType, NearToken, PublicKey, SecretKey},
 };
@@ -28,6 +30,7 @@ static LOCK: Mutex<()> = Mutex::const_new(());
 pub struct WalletContract {
     pub inner: Contract,
     pub sk: near_crypto::SecretKey,
+    worker: Worker<Sandbox>,
 }
 
 impl WalletContract {
@@ -36,17 +39,19 @@ impl WalletContract {
         target: &str,
         tx: &EthTransactionKind,
     ) -> anyhow::Result<ExecutionFinalResult> {
-        let result = self
+        let tx = self
             .inner
             .call(RLP_EXECUTE)
             .args_json(serde_json::json!({
                 "target": target,
                 "tx_bytes_b64": codec::encode_b64(&codec::rlp_encode(tx))
             }))
-            .max_gas()
-            .transact()
-            .await?;
+            .max_gas();
 
+        let status = tx.transact_async().await?;
+        self.await_tx_final(&status).await;
+
+        let result = status.await.unwrap();
         Ok(result)
     }
 
@@ -57,7 +62,7 @@ impl WalletContract {
         tx: &EthTransactionKind,
         attached_deposit: NearToken,
     ) -> anyhow::Result<ExecuteResponse> {
-        let result: ExecuteResponse = caller
+        let status = caller
             .call(self.inner.id(), RLP_EXECUTE)
             .args_json(serde_json::json!({
                 "target": target,
@@ -65,10 +70,13 @@ impl WalletContract {
             }))
             .max_gas()
             .deposit(attached_deposit)
-            .transact()
-            .await?
-            .into_result()?
-            .json()?;
+            .transact_async()
+            .await
+            .unwrap();
+
+        self.await_tx_final(&status).await;
+
+        let result = status.await?.into_result()?.json()?;
 
         Ok(result)
     }
@@ -141,6 +149,18 @@ impl WalletContract {
         self.inner.as_account_mut().set_secret_key(relayer_key);
 
         Ok(relayer_pk)
+    }
+
+    async fn await_tx_final(&self, status: &TransactionStatus) {
+        // Ensure the transaction is completely finished executing by waiting for it to be `Final.
+        let transaction_info = TransactionInfo::TransactionId {
+            tx_hash: CryptoHash(status.hash().0),
+            sender_account_id: status.sender_id().clone(),
+        };
+        self.worker
+            .tx_status(transaction_info, TxExecutionStatus::Final)
+            .await
+            .unwrap();
     }
 }
 
@@ -227,6 +247,7 @@ impl TestContext {
         let wallet_contract = WalletContract {
             inner: wallet_account.deploy(contract_bytes).await?.result,
             sk: wallet_sk,
+            worker: worker.clone(),
         };
 
         Ok((wallet_contract, wallet_address))

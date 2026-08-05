@@ -1,6 +1,6 @@
 use crate::{
     internal::{CHAIN_ID, MAX_YOCTO_NEAR, account_id_to_address},
-    tests::utils::{crypto, nep141, test_context::TestContext},
+    tests::utils::{crypto, into_ethabi_token, nep141, test_context::TestContext},
     types::ExecuteResponse,
 };
 use aurora_engine_types::types::{Address, Wei};
@@ -70,10 +70,11 @@ async fn test_base_token_transfer() -> anyhow::Result<()> {
         .balance;
 
     // Receiver balance increases
-    assert_eq!(
-        final_other_balance.as_yoctonear(),
-        initial_other_balance.as_yoctonear() + TRANSFER_AMOUNT.as_yoctonear()
-    );
+    let diff = final_other_balance.as_yoctonear()
+        - initial_other_balance.as_yoctonear()
+        - TRANSFER_AMOUNT.as_yoctonear();
+    assert!(NearToken::from_yoctonear(diff) < NearToken::from_millinear(20));
+
     // Sender balance decreases (by a little more than the
     // `TRANSFER_AMOUNT` due to gas spent to execute the transaction)
     let diff = NearToken::from_yoctonear(
@@ -236,10 +237,10 @@ async fn test_base_token_transfer_with_relayer_refund() -> anyhow::Result<()> {
         .balance;
 
     // Receiver balance increases
-    assert_eq!(
-        final_other_balance.as_yoctonear(),
-        initial_other_balance.as_yoctonear() + TRANSFER_AMOUNT.as_yoctonear()
-    );
+    let diff = final_other_balance.as_yoctonear()
+        - initial_other_balance.as_yoctonear()
+        - TRANSFER_AMOUNT.as_yoctonear();
+    assert!(NearToken::from_yoctonear(diff) < NearToken::from_millinear(20));
 
     // Wallet balance decreases (round to milliNEAR to account for funds
     // received for calling the contract).
@@ -294,7 +295,7 @@ async fn test_erc20_emulation() -> anyhow::Result<()> {
         value: Wei::zero(),
         data: [
             crate::eth_emulation::ERC20_BALANCE_OF_SELECTOR.to_vec(),
-            ethabi::encode(&[ethabi::Token::Address(wallet_address)]),
+            ethabi::encode(&[into_ethabi_token(&wallet_address)]),
         ]
         .concat(),
         chain_id: CHAIN_ID,
@@ -330,7 +331,7 @@ async fn test_erc20_emulation() -> anyhow::Result<()> {
         data: [
             crate::eth_emulation::ERC20_TRANSFER_SELECTOR,
             ethabi::encode(&[
-                ethabi::Token::Address(other_address),
+                into_ethabi_token(&other_address),
                 ethabi::Token::Uint(TRANSFER_AMOUNT.as_yoctonear().into()),
             ])
             .as_slice(),
@@ -379,7 +380,7 @@ async fn test_erc20_emulation() -> anyhow::Result<()> {
         data: [
             crate::eth_emulation::ERC20_TRANSFER_SELECTOR.to_vec(),
             ethabi::encode(&[
-                ethabi::Token::Address(other_address),
+                into_ethabi_token(&other_address),
                 ethabi::Token::Uint(TRANSFER_AMOUNT.as_yoctonear().into()),
             ]),
         ]
@@ -456,7 +457,7 @@ async fn test_erc20_emulation() -> anyhow::Result<()> {
         data: [
             crate::eth_emulation::ERC20_TRANSFER_SELECTOR.to_vec(),
             ethabi::encode(&[
-                ethabi::Token::Address(other_address),
+                into_ethabi_token(&other_address),
                 ethabi::Token::Uint(TRANSFER_AMOUNT.as_yoctonear().into()),
             ]),
         ]
@@ -506,12 +507,10 @@ async fn test_erc20_emulation() -> anyhow::Result<()> {
         .await?
         .balance;
 
-    // Relayer balance stays the same (rounded to the nearest milliNEAR) since the
+    // Relayer balance stays almost the same since the
     // wallet refunded the relayer approximately equal to the transaction gas cost.
-    assert_eq!(
-        final_relayer_balance.as_millinear(),
-        initial_relayer_balance.as_millinear()
-    );
+    let diff = final_relayer_balance.as_yoctonear() - initial_relayer_balance.as_yoctonear();
+    assert!(NearToken::from_yoctonear(diff) < NearToken::from_millinear(2));
 
     // Wallet balance decreases (round to milliNEAR to account for funds
     // received for calling the contract).

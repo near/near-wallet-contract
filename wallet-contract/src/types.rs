@@ -5,7 +5,8 @@ use crate::{
         FunctionCallPermission, TransferAction,
     },
 };
-use ethabi::{Address, ParamType};
+use aurora_engine_types::H160 as Address;
+use ethabi::ParamType;
 use near_sdk::{AccountId, Gas, NearToken, PublicKey};
 use std::num::NonZeroU128;
 use std::sync::LazyLock;

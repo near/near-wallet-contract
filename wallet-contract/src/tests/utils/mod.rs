@@ -13,6 +13,10 @@ pub mod crypto;
 pub mod nep141;
 pub mod test_context;
 
+pub fn into_ethabi_token(address: &aurora_engine_types::H160) -> ethabi::Token {
+    ethabi::Token::Address(ethabi::Address::from_slice(address.as_bytes()))
+}
+
 pub async fn deploy_and_call_hello(
     worker: &Worker<Sandbox>,
     wallet_contract: &WalletContract,

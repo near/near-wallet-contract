@@ -15,7 +15,7 @@ This repository contains two smart contracts:
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) 1.86.0+
+- [Rust](https://rustup.rs/) 1.93.0+
 - [cargo-near](https://github.com/near/cargo-near)
 
 ```bash

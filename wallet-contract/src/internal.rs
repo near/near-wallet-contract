@@ -9,8 +9,8 @@ use crate::{
     },
 };
 use aurora_engine_transactions::{EthTransactionKind, NormalizedEthTransaction};
+use aurora_engine_types::{H160 as Address, U256};
 use base64::Engine;
-use ethabi::{Address, ethereum_types::U256};
 use near_sdk::{AccountId, NearToken, env};
 
 /// The chain ID is pulled from a file to allow this contract to be easily
