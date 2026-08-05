@@ -19,51 +19,47 @@ jobs:
 
       - name: Install Rust
         run: |
-          rustup toolchain install 1.86.0 --profile minimal --component rustfmt
-          rustup override set 1.86.0
+          rustup toolchain install 1.93.0 --profile minimal --component rustfmt
+          rustup override set 1.93.0
 
       - name: Check formatting
         run: cargo fmt --all --check
 
-  # TODO: Fix test configuration - near-sdk 5.24 requires unit-testing feature
-  # but there are version conflicts with near-crypto. Tests are run via
-  # near-workspaces which builds the WASM and tests against it.
-  # test:
-  #   name: Tests
-  #   runs-on: warp-ubuntu-latest-x64-4x
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Install Rust
-  #       run: |
-  #         rustup toolchain install 1.86.0 --profile minimal --target wasm32-unknown-unknown
-  #         rustup override set 1.86.0
-  #     - name: Install cargo-near CLI
-  #       run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/download/cargo-near-v0.19.0/cargo-near-installer.sh | sh
-  #     - uses: Swatinem/rust-cache@v2
-  #       with:
-  #         cache-provider: warpbuild
-  #         shared-key: "linux-1.86-test"
-  #         cache-all-crates: true
-  #     - name: Run tests
-  #       run: cargo test --workspace
+  test:
+    name: Tests
+    runs-on: warp-ubuntu-latest-x64-4x
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal --target wasm32-unknown-unknown
+          rustup override set 1.93.0
+      - name: Install cargo-near CLI
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/download/cargo-near-v0.19.0/cargo-near-installer.sh | sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-provider: warpbuild
+          shared-key: "linux-1.86-test"
+          cache-all-crates: true
+      - name: Run tests
+        run: cargo test --workspace
 
-  # TODO: Fix clippy - near-sdk 5.24 has strict target requirements
-  # clippy:
-  #   name: Clippy
-  #   runs-on: warp-ubuntu-latest-x64-4x
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Install Rust
-  #       run: |
-  #         rustup toolchain install 1.86.0 --profile minimal --component clippy --target wasm32-unknown-unknown
-  #         rustup override set 1.86.0
-  #     - uses: Swatinem/rust-cache@v2
-  #       with:
-  #         cache-provider: warpbuild
-  #         shared-key: "linux-1.86-clippy"
-  #         cache-all-crates: true
-  #     - name: Run clippy
-  #       run: cargo clippy --target wasm32-unknown-unknown --workspace -- --warn clippy::all --warn clippy::nursery
+  clippy:
+    name: Clippy
+    runs-on: warp-ubuntu-latest-x64-4x
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal --component clippy
+          rustup override set 1.93.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-provider: warpbuild
+          shared-key: "linux-1.86-clippy"
+          cache-all-crates: true
+      - name: Run clippy
+        run: cargo clippy --workspace -- --warn clippy::all --warn clippy::nursery
 
   build-check:
     name: Build Check (WASM)
@@ -73,8 +69,8 @@ jobs:
 
       - name: Install Rust
         run: |
-          rustup toolchain install 1.86.0 --profile minimal --target wasm32-unknown-unknown
-          rustup override set 1.86.0
+          rustup toolchain install 1.93.0 --profile minimal --target wasm32-unknown-unknown
+          rustup override set 1.93.0
 
       - name: Install cargo-near CLI
         run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/download/cargo-near-v0.19.0/cargo-near-installer.sh | sh
