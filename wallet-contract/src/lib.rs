@@ -51,6 +51,9 @@ const NEP_141_STORAGE_BALANCE_CALLBACK_GAS: Gas = Gas::from_tgas(5)
 /// state writes, response construction, etc.).
 const MAX_PROMISE_RESULT_SIZE: usize = 16 * 1024; // 16 KB
 
+/// Main entry point method name.
+const RLP_EXECUTE: &str = "rlp_execute";
+
 #[derive(Default)]
 #[near(contract_state)]
 pub struct WalletContract {
@@ -558,8 +561,15 @@ fn action_to_promise(target: AccountId, action: near_action::Action) -> Result<P
             near_action::AccessKeyPermission::FullAccess => Err(Error::User(
                 UserError::UnsupportedAction(UnsupportedAction::AddFullAccessKey),
             )),
-            near_action::AccessKeyPermission::FunctionCall(access) => Ok(Promise::new(target)
-                .add_access_key_allowance_with_nonce(
+            near_action::AccessKeyPermission::FunctionCall(access) => {
+                if let Err(unsupported_action) =
+                    internal::validate_function_call_access_key(&target, &access)
+                {
+                    return Err(Error::User(UserError::UnsupportedAction(
+                        unsupported_action,
+                    )));
+                }
+                Ok(Promise::new(target).add_access_key_allowance_with_nonce(
                     action.public_key,
                     access
                         .allowance
@@ -568,7 +578,8 @@ fn action_to_promise(target: AccountId, action: near_action::Action) -> Result<P
                     access.receiver_id,
                     access.method_names.join(","),
                     action.access_key.nonce,
-                )),
+                ))
+            }
         },
         near_action::Action::DeleteKey(action) => {
             Ok(Promise::new(target).delete_key(action.public_key))

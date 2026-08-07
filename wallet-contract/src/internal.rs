@@ -1,6 +1,8 @@
 use crate::{
+    RLP_EXECUTE,
     error::{AccountIdError, Error, RelayerError, UnsupportedAction, UserError},
-    eth_emulation, ethabi_utils, near_action,
+    eth_emulation, ethabi_utils,
+    near_action::{self, FunctionCallPermission},
     types::{
         ADD_KEY_SELECTOR, ADD_KEY_SIGNATURE, Action, DELETE_KEY_SELECTOR, DELETE_KEY_SIGNATURE,
         EthEmulationKind, ExecutionContext, FUNCTION_CALL_SELECTOR, FUNCTION_CALL_SIGNATURE,
@@ -240,6 +242,26 @@ pub fn keccak256(bytes: &[u8]) -> [u8; 32] {
 
     #[cfg(not(test))]
     near_sdk::env::keccak256_array(bytes)
+}
+
+pub fn validate_function_call_access_key(
+    target: &AccountId,
+    access: &FunctionCallPermission,
+) -> Result<(), UnsupportedAction> {
+    // Method names must be listed explicitly and if an allowance is specified it
+    // must be non-zero.
+    if access.method_names.is_empty() || access.allowance.is_some_and(|amount| amount.is_zero()) {
+        return Err(UnsupportedAction::UnrestrictedFunctionCallAccessKey);
+    }
+
+    // If the key is for this contract itself (note: target == current_account_id for AddKey action)
+    // then only only `rlp_execute` can be called. This prevents malicious relayers from
+    // calling internal methods such as `rlp_execute_callback` directly.
+    if &access.receiver_id == target && access.method_names != [RLP_EXECUTE] {
+        return Err(UnsupportedAction::WrongSelfMethod);
+    }
+
+    Ok(())
 }
 
 fn parse_target(target: &AccountId, current_address: Address) -> TargetKind<'_> {
