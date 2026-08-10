@@ -14,6 +14,50 @@ use crate::{
 use aurora_engine_types::types::{Address, Wei};
 use near_workspaces::types::{KeyType, SecretKey};
 
+// EIP-7702 transactions are not allowed because
+// we do not attempt to emulate that form of account abstraction.
+// Users interested in having account abstraction should look into
+// Near-native ways to accomplish it.
+#[tokio::test]
+async fn test_eip_7702_not_allowed() -> anyhow::Result<()> {
+    let TestContext {
+        wallet_contract, ..
+    } = TestContext::new().await?;
+
+    let transaction = aurora_engine_transactions::eip_7702::Transaction7702 {
+        nonce: 0.into(),
+        gas_limit: 21_000.into(),
+        to: aurora_engine_types::types::Address::zero(),
+        value: Wei::zero(),
+        data: Vec::new(),
+        chain_id: CHAIN_ID,
+        access_list: Vec::new(),
+        max_priority_fee_per_gas: 0.into(),
+        max_fee_per_gas: 0.into(),
+        authorization_list: Vec::new(),
+    };
+    let signed_transaction = aurora_engine_transactions::EthTransactionKind::Eip7702(
+        aurora_engine_transactions::eip_7702::SignedTransaction7702 {
+            transaction,
+            parity: 0,
+            r: 1.into(),
+            s: 2.into(),
+        },
+    );
+
+    let result = wallet_contract
+        .rlp_execute("aurora", &signed_transaction)
+        .await?;
+
+    assert!(!result.success);
+    assert_eq!(
+        result.error,
+        Some(Error::User(UserError::UnsupportedAction(UnsupportedAction::EIP7702)).to_string())
+    );
+
+    Ok(())
+}
+
 // Transactions which would deploy an EVM contract are not allowed because
 // there is no native EVM bytecode interpreter on Near.
 #[tokio::test]

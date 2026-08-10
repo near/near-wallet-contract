@@ -23,6 +23,7 @@ container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "-
 
 [dependencies]
 aurora-engine-transactions.workspace = true
+aurora-engine-types.workspace = true
 base64.workspace = true
 ethabi.workspace = true
 hex.workspace = true
@@ -33,9 +34,11 @@ serde_json.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
-aurora-engine-types.workspace = true
 near-crypto.workspace = true
+near-jsonrpc-primitives.workspace = true
 near-gas.workspace = true
+near-primitives.workspace = true
+near-sdk = { workspace = true, features = ["unit-testing"] }
 near-workspaces.workspace = true
 rlp.workspace = true
 sha3.workspace = true

@@ -140,12 +140,11 @@ async fn test_base_token_transfer_success() -> anyhow::Result<()> {
         final_receiver_balance.as_yoctonear() - initial_receiver_balance.as_yoctonear(),
         transfer_amount
     );
-    // Wallet loses a little more $NEAR than the transfer amount
-    // due to gas spent on the transaction.
-    let diff = initial_wallet_balance.as_yoctonear()
-        - final_wallet_balance.as_yoctonear()
-        - transfer_amount;
-    assert!(diff < NearToken::from_millinear(2).as_yoctonear());
+    // Wallet loses a little less $NEAR than the transfer amount
+    // due to contract refund of spent gas.
+    let diff = final_wallet_balance.as_yoctonear() + transfer_amount
+        - initial_wallet_balance.as_yoctonear();
+    assert!(diff < NearToken::from_millinear(20).as_yoctonear());
 
     Ok(())
 }

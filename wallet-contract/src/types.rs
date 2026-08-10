@@ -5,7 +5,8 @@ use crate::{
         FunctionCallPermission, TransferAction,
     },
 };
-use ethabi::{Address, ParamType};
+use aurora_engine_types::H160 as Address;
+use ethabi::ParamType;
 use near_sdk::{AccountId, Gas, NearToken, PublicKey};
 use std::num::NonZeroU128;
 use std::sync::LazyLock;
@@ -244,12 +245,12 @@ pub enum Action {
 impl Action {
     pub fn value(&self) -> NearToken {
         match self {
-            Action::FunctionCall { yocto_near, .. } => {
+            Self::FunctionCall { yocto_near, .. } => {
                 NearToken::from_yoctonear((*yocto_near).into())
             }
-            Action::Transfer { yocto_near, .. } => NearToken::from_yoctonear((*yocto_near).into()),
-            Action::AddKey { .. } => NearToken::from_yoctonear(0),
-            Action::DeleteKey { .. } => NearToken::from_yoctonear(0),
+            Self::Transfer { yocto_near, .. } => NearToken::from_yoctonear((*yocto_near).into()),
+            Self::AddKey { .. } => NearToken::from_yoctonear(0),
+            Self::DeleteKey { .. } => NearToken::from_yoctonear(0),
         }
     }
 
@@ -258,7 +259,7 @@ impl Action {
         additional_value: u128,
     ) -> Result<near_action::Action, Error> {
         let action = match self {
-            Action::FunctionCall {
+            Self::FunctionCall {
                 receiver_id: _,
                 method_name,
                 args,
@@ -275,7 +276,7 @@ impl Action {
                 };
                 near_action::Action::FunctionCall(action)
             }
-            Action::Transfer {
+            Self::Transfer {
                 receiver_id: _,
                 yocto_near,
             } => {
@@ -286,7 +287,7 @@ impl Action {
                 };
                 near_action::Action::Transfer(action)
             }
-            Action::AddKey {
+            Self::AddKey {
                 public_key_kind,
                 public_key,
                 nonce,
@@ -325,7 +326,7 @@ impl Action {
                 };
                 near_action::Action::AddKey(action)
             }
-            Action::DeleteKey {
+            Self::DeleteKey {
                 public_key_kind,
                 public_key,
             } => {

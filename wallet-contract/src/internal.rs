@@ -1,5 +1,5 @@
 use crate::{
-    error::{AccountIdError, Error, RelayerError, UserError},
+    error::{AccountIdError, Error, RelayerError, UnsupportedAction, UserError},
     eth_emulation, ethabi_utils, near_action,
     types::{
         ADD_KEY_SELECTOR, ADD_KEY_SIGNATURE, Action, DELETE_KEY_SELECTOR, DELETE_KEY_SIGNATURE,
@@ -9,8 +9,8 @@ use crate::{
     },
 };
 use aurora_engine_transactions::{EthTransactionKind, NormalizedEthTransaction};
+use aurora_engine_types::{H160 as Address, U256};
 use base64::Engine;
-use ethabi::{Address, ethereum_types::U256};
 use near_sdk::{AccountId, NearToken, env};
 
 /// The chain ID is pulled from a file to allow this contract to be easily
@@ -48,6 +48,11 @@ pub fn parse_rlp_tx_to_action(
 ) -> Result<(near_action::Action, TransactionKind), Error> {
     let tx_bytes = decode_b64(tx_bytes_b64)?;
     let tx_kind: EthTransactionKind = tx_bytes.as_slice().try_into()?;
+    if let EthTransactionKind::Eip7702(_) = &tx_kind {
+        return Err(Error::User(UserError::UnsupportedAction(
+            UnsupportedAction::EIP7702,
+        )));
+    }
     let tx: NormalizedEthTransaction = tx_kind.try_into()?;
     let target_kind = validate_tx_relayer_data(&tx, target, context, expected_nonce)?;
 
@@ -238,16 +243,13 @@ pub fn keccak256(bytes: &[u8]) -> [u8; 32] {
 }
 
 fn parse_target(target: &AccountId, current_address: Address) -> TargetKind<'_> {
-    match extract_address(target) {
-        Ok(address) => {
-            if address == current_address {
-                TargetKind::CurrentAccount
-            } else {
-                TargetKind::EthImplicit(address)
-            }
+    extract_address(target).map_or(TargetKind::OtherNearAccount(target), |address| {
+        if address == current_address {
+            TargetKind::CurrentAccount
+        } else {
+            TargetKind::EthImplicit(address)
         }
-        Err(_) => TargetKind::OtherNearAccount(target),
-    }
+    })
 }
 
 fn parse_tx_data(

@@ -3,7 +3,7 @@ use crate::{
     tests::{
         RLP_EXECUTE,
         utils::{
-            self, codec, crypto, nep141,
+            self, codec, crypto, into_ethabi_token, nep141,
             test_context::{TestContext, WalletContract},
         },
     },
@@ -264,7 +264,7 @@ async fn test_relayer_invalid_address_target() -> anyhow::Result<()> {
         value: Wei::zero(),
         data: [
             crate::eth_emulation::ERC20_BALANCE_OF_SELECTOR.to_vec(),
-            ethabi::encode(&[ethabi::Token::Address(wallet_address)]),
+            ethabi::encode(&[into_ethabi_token(&wallet_address)]),
         ]
         .concat(),
         chain_id: CHAIN_ID,
@@ -306,7 +306,7 @@ async fn test_relayer_wrong_chain_id() -> anyhow::Result<()> {
         value: Wei::zero(),
         data: [
             crate::eth_emulation::ERC20_BALANCE_OF_SELECTOR.to_vec(),
-            ethabi::encode(&[ethabi::Token::Address(wallet_address)]),
+            ethabi::encode(&[into_ethabi_token(&wallet_address)]),
         ]
         .concat(),
         chain_id: CHAIN_ID + 1,
@@ -350,7 +350,7 @@ async fn test_relayer_insufficient_gas() -> anyhow::Result<()> {
         value: Wei::zero(),
         data: [
             crate::eth_emulation::ERC20_BALANCE_OF_SELECTOR.to_vec(),
-            ethabi::encode(&[ethabi::Token::Address(wallet_address)]),
+            ethabi::encode(&[into_ethabi_token(&wallet_address)]),
         ]
         .concat(),
         chain_id: CHAIN_ID + 1,
@@ -430,7 +430,7 @@ async fn test_external_caller_invalid_address_target_increments_nonce() -> anyho
         value: Wei::zero(),
         data: [
             crate::eth_emulation::ERC20_BALANCE_OF_SELECTOR.to_vec(),
-            ethabi::encode(&[ethabi::Token::Address(wallet_address)]),
+            ethabi::encode(&[into_ethabi_token(&wallet_address)]),
         ]
         .concat(),
         chain_id: CHAIN_ID,
@@ -440,17 +440,10 @@ async fn test_external_caller_invalid_address_target_increments_nonce() -> anyho
 
     // External caller uses eth-implicit target (0x...near format)
     // This triggers the registrar lookup which finds the address is registered
-    let eth_implicit_target = format!(
-        "{}.{}",
-        target_address_hex,
-        wallet_contract
-            .inner
-            .id()
-            .as_str()
-            .split('.')
-            .last()
-            .unwrap()
-    );
+    let wallet_account_id = wallet_contract.inner.id().as_str();
+    let suffix_index = wallet_account_id.find('.').unwrap();
+    let suffix = &wallet_account_id[suffix_index..];
+    let eth_implicit_target = format!("{}{}", target_address_hex, suffix,);
 
     // First call - should fail with "Invalid target" but increment nonce
     let result = wallet_contract

@@ -1,3 +1,5 @@
+#![allow(clippy::too_long_first_doc_paragraph, clippy::use_self)]
+
 use crate::{
     error::Error,
     types::{CallerDeposit, ExecuteResponse, ExecutionContext},
@@ -72,7 +74,7 @@ impl WalletContract {
     /// is submitted (even if that transaction eventually fails). In this way, each
     /// nonce value can only be used once (hence the name "nonce") and thus transaction
     /// replay is prevented.
-    pub fn get_nonce(&self) -> U64 {
+    pub const fn get_nonce(&self) -> U64 {
         U64(self.nonce)
     }
 
@@ -198,8 +200,7 @@ impl WalletContract {
             // Recall that the nonce was not incremented in `inner_rlp_execute` in the case that
             // the registrar contract was called (i.e. in the case we end up inside this callback).
             self.nonce = self.nonce.saturating_add(1);
-            let ext =
-                WalletContract::ext(current_account_id).with_static_gas(RLP_EXECUTE_CALLBACK_GAS);
+            let ext = Self::ext(current_account_id).with_static_gas(RLP_EXECUTE_CALLBACK_GAS);
             match action_to_promise(target, action)
                 .map(|p| p.then(ext.rlp_execute_callback(caller_deposit)))
             {
@@ -259,7 +260,7 @@ impl WalletContract {
                 },
             };
         let current_account_id = env::current_account_id();
-        let ext = WalletContract::ext(current_account_id).with_static_gas(RLP_EXECUTE_CALLBACK_GAS);
+        let ext = Self::ext(current_account_id).with_static_gas(RLP_EXECUTE_CALLBACK_GAS);
         let promise = match maybe_storage_balance {
             Some(_) => {
                 // receiver_id is registered so we can send the transfer
@@ -447,16 +448,15 @@ fn inner_rlp_execute(
             // transfer. Relayers should also verify the fee before sending to make sure the
             // user's signed transaction will refund enough to cover the relayer's gas costs.
             if let TransactionKind::EthEmulation(EthEmulationKind::EOABaseTokenTransfer {
-                fee,
-                ..
+                fee, ..
             })
             | TransactionKind::EthEmulation(EthEmulationKind::ERC20Transfer { fee, .. }) =
                 &transaction_kind
+                && !fee.is_zero()
+                && context.predecessor_account_id != context.current_account_id
             {
-                if !fee.is_zero() && context.predecessor_account_id != context.current_account_id {
-                    let refund_promise = env::promise_batch_create(&context.predecessor_account_id);
-                    env::promise_batch_action_transfer(refund_promise, *fee);
-                }
+                let refund_promise = env::promise_batch_create(&context.predecessor_account_id);
+                env::promise_batch_action_transfer(refund_promise, *fee);
             }
 
             (action, transaction_kind)
@@ -589,6 +589,10 @@ fn create_ban_relayer_promise(current_account_id: AccountId) -> Promise {
         )
 }
 
+// This trait is used in the code above, but the `ext_contract`
+// proc macro must generate a different version of it, so the compiler
+// does not notice this is used.
+#[allow(dead_code)]
 #[near_sdk::ext_contract(ext_registrar)]
 trait AddressRegistrar {
     fn lookup(&self, address: String) -> Option<AccountId>;
