@@ -1,5 +1,5 @@
 use crate::{
-    error::{AccountIdError, Error, RelayerError, UserError},
+    error::{AccountIdError, Error, RelayerError, UnsupportedAction, UserError},
     eth_emulation, ethabi_utils, near_action,
     types::{
         ADD_KEY_SELECTOR, ADD_KEY_SIGNATURE, Action, DELETE_KEY_SELECTOR, DELETE_KEY_SIGNATURE,
@@ -48,6 +48,11 @@ pub fn parse_rlp_tx_to_action(
 ) -> Result<(near_action::Action, TransactionKind), Error> {
     let tx_bytes = decode_b64(tx_bytes_b64)?;
     let tx_kind: EthTransactionKind = tx_bytes.as_slice().try_into()?;
+    if let EthTransactionKind::Eip7702(_) = &tx_kind {
+        return Err(Error::User(UserError::UnsupportedAction(
+            UnsupportedAction::EIP7702,
+        )));
+    }
     let tx: NormalizedEthTransaction = tx_kind.try_into()?;
     let target_kind = validate_tx_relayer_data(&tx, target, context, expected_nonce)?;
 

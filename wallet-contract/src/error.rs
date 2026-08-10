@@ -69,6 +69,7 @@ pub enum UnsupportedAction {
     Delegate,
     DeleteAccount,
     DeployContract,
+    EIP7702,
     Stake,
 }
 
