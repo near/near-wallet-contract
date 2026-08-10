@@ -13,7 +13,7 @@ base64 = "0.21"
 ethabi = { version = "18", default-features = false }
 hex = "0.4"
 near-contract-standards = "5.29"
-near-sdk = { version = "5.29", features = ["unit-testing"] }
+near-sdk = { version = "5.29" }
 serde = { version = "1", features = ["derive"] }
 
 # dev-dependencies
