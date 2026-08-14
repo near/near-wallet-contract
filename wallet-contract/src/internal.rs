@@ -251,7 +251,10 @@ pub fn validate_function_call_access_key(
     // Method names must be listed explicitly and if an allowance is specified it
     // must be non-zero.
     if access.method_names.is_empty()
-        || access.method_names.iter().any(|name| name.is_empty())
+        || access
+            .method_names
+            .iter()
+            .any(|name| name.is_empty() || name.contains(','))
         || access.allowance.is_some_and(|amount| amount.is_zero())
     {
         return Err(UnsupportedAction::UnrestrictedFunctionCallAccessKey);

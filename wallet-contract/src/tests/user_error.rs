@@ -404,6 +404,24 @@ async fn test_cannot_add_bad_function_access_key() -> anyhow::Result<()> {
     .await?;
 
     assert_bad_access_key(
+        |key, _| {
+            // Bad key due to concatenated method names
+            Action::AddKey {
+                public_key_kind: 0,
+                public_key: key.public_key().key_data().to_vec(),
+                nonce: 0,
+                is_full_access: false,
+                is_limited_allowance: false,
+                allowance: 0,
+                receiver_id: "receiver.near".into(),
+                method_names: vec!["hello,world".into()],
+            }
+        },
+        UnsupportedAction::UnrestrictedFunctionCallAccessKey,
+    )
+    .await?;
+
+    assert_bad_access_key(
         |key, wallet_contract| {
             // Bad key due to enabling private method
             Action::AddKey {
