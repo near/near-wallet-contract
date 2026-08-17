@@ -1,11 +1,9 @@
 use crate::{
+    RLP_EXECUTE,
     internal::{CHAIN_ID, account_id_to_address},
-    tests::{
-        RLP_EXECUTE,
-        utils::{
-            self, codec, crypto, into_ethabi_token, nep141,
-            test_context::{TestContext, WalletContract},
-        },
+    tests::utils::{
+        self, codec, crypto, into_ethabi_token, nep141,
+        test_context::{TestContext, WalletContract},
     },
     types::{Action, ExecuteResponse},
 };

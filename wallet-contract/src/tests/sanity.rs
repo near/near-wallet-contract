@@ -67,7 +67,7 @@ async fn test_insufficient_gas() -> anyhow::Result<()> {
 
     let error = wallet_contract
         .inner
-        .call(crate::tests::RLP_EXECUTE)
+        .call(crate::RLP_EXECUTE)
         .args_json(serde_json::json!({
             "target": target,
             "tx_bytes_b64": codec::encode_b64(&codec::rlp_encode(&signed_transaction))

@@ -71,6 +71,8 @@ pub enum UnsupportedAction {
     DeployContract,
     EIP7702,
     Stake,
+    UnrestrictedFunctionCallAccessKey,
+    WrongSelfMethod,
 }
 
 impl From<aurora_engine_transactions::Error> for Error {

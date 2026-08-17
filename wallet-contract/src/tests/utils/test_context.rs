@@ -1,6 +1,7 @@
 use crate::{
+    RLP_EXECUTE,
     tests::{
-        GET_NONCE, RLP_EXECUTE,
+        GET_NONCE,
         utils::{self, codec},
     },
     types::{Action, ExecuteResponse},

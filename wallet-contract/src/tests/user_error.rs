@@ -323,11 +323,132 @@ async fn test_invalid_public_key_account_id() -> anyhow::Result<()> {
     Ok(())
 }
 
-// User's are not allowed to add full access keys to the account.
+// Users are not allowed to add full access keys to the account.
 // This would be too dangerous as it could allow for undefined behaviour
 // such as deploying a different contract to an Eth implicit address.
 #[tokio::test]
 async fn test_cannot_add_full_access_key() -> anyhow::Result<()> {
+    assert_bad_access_key(
+        |key, _| Action::AddKey {
+            public_key_kind: 0,
+            public_key: key.public_key().key_data().to_vec(),
+            nonce: 0,
+            is_full_access: true,
+            is_limited_allowance: false,
+            allowance: 0,
+            receiver_id: String::new(),
+            method_names: Vec::new(),
+        },
+        UnsupportedAction::AddFullAccessKey,
+    )
+    .await
+}
+
+// All FunctionCall Access keys must explicitly list which methods they can call,
+// and if there is a limited gas spend then it must be non-zero. If the FunctionCall
+// Access key is for the wallet itself then it must not list any private contract methods.
+#[tokio::test]
+async fn test_cannot_add_bad_function_access_key() -> anyhow::Result<()> {
+    assert_bad_access_key(
+        |key, _| {
+            // Bad key due to missing method names
+            Action::AddKey {
+                public_key_kind: 0,
+                public_key: key.public_key().key_data().to_vec(),
+                nonce: 0,
+                is_full_access: false,
+                is_limited_allowance: false,
+                allowance: 0,
+                receiver_id: "receiver.near".into(),
+                method_names: Vec::new(),
+            }
+        },
+        UnsupportedAction::UnrestrictedFunctionCallAccessKey,
+    )
+    .await?;
+
+    assert_bad_access_key(
+        |key, _| {
+            // Bad key due to 0 limit
+            Action::AddKey {
+                public_key_kind: 0,
+                public_key: key.public_key().key_data().to_vec(),
+                nonce: 0,
+                is_full_access: false,
+                is_limited_allowance: true,
+                allowance: 0,
+                receiver_id: "receiver.near".into(),
+                method_names: vec!["method_name".to_string()],
+            }
+        },
+        UnsupportedAction::UnrestrictedFunctionCallAccessKey,
+    )
+    .await?;
+
+    assert_bad_access_key(
+        |key, _| {
+            // Bad key due to empty method name
+            Action::AddKey {
+                public_key_kind: 0,
+                public_key: key.public_key().key_data().to_vec(),
+                nonce: 0,
+                is_full_access: false,
+                is_limited_allowance: false,
+                allowance: 0,
+                receiver_id: "receiver.near".into(),
+                method_names: vec![String::new()],
+            }
+        },
+        UnsupportedAction::UnrestrictedFunctionCallAccessKey,
+    )
+    .await?;
+
+    assert_bad_access_key(
+        |key, _| {
+            // Bad key due to concatenated method names
+            Action::AddKey {
+                public_key_kind: 0,
+                public_key: key.public_key().key_data().to_vec(),
+                nonce: 0,
+                is_full_access: false,
+                is_limited_allowance: false,
+                allowance: 0,
+                receiver_id: "receiver.near".into(),
+                method_names: vec!["hello,world".into()],
+            }
+        },
+        UnsupportedAction::UnrestrictedFunctionCallAccessKey,
+    )
+    .await?;
+
+    assert_bad_access_key(
+        |key, wallet_contract| {
+            // Bad key due to enabling private method
+            Action::AddKey {
+                public_key_kind: 0,
+                public_key: key.public_key().key_data().to_vec(),
+                nonce: 0,
+                is_full_access: false,
+                is_limited_allowance: false,
+                allowance: 0,
+                receiver_id: wallet_contract.inner.as_account().id().to_string(),
+                method_names: vec!["rlp_execute_callback".to_string()],
+            }
+        },
+        UnsupportedAction::WrongSelfMethod,
+    )
+    .await?;
+
+    Ok(())
+}
+
+async fn assert_bad_access_key<F>(
+    create_action: F,
+    expected_error: UnsupportedAction,
+) -> anyhow::Result<()>
+where
+    F: Fn(SecretKey, &WalletContract) -> Action,
+{
     let TestContext {
         wallet_contract,
         wallet_sk,
@@ -335,16 +456,7 @@ async fn test_cannot_add_full_access_key() -> anyhow::Result<()> {
     } = TestContext::new().await?;
 
     let key = SecretKey::from_random(KeyType::ED25519);
-    let action = Action::AddKey {
-        public_key_kind: 0,
-        public_key: key.public_key().key_data().to_vec(),
-        nonce: 0,
-        is_full_access: true,
-        is_limited_allowance: false,
-        allowance: 0,
-        receiver_id: String::new(),
-        method_names: Vec::new(),
-    };
+    let action = create_action(key, &wallet_contract);
     let signed_transaction = utils::create_signed_transaction(
         0,
         wallet_contract.inner.id(),
@@ -360,12 +472,7 @@ async fn test_cannot_add_full_access_key() -> anyhow::Result<()> {
     assert!(!result.success);
     assert_eq!(
         result.error,
-        Some(
-            Error::User(UserError::UnsupportedAction(
-                UnsupportedAction::AddFullAccessKey
-            ))
-            .to_string()
-        )
+        Some(Error::User(UserError::UnsupportedAction(expected_error)).to_string())
     );
 
     Ok(())
