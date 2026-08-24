@@ -156,6 +156,7 @@ impl WalletContract {
         // plus JSON formatting overhead, so 256 bytes is plenty.
         let maybe_account_id: Option<AccountId> = match env::promise_result_checked(0, 256) {
             Err(PromiseError::Failed) => {
+                refund_caller_deposit(&caller_deposit);
                 return PromiseOrValue::Value(ExecuteResponse {
                     success: false,
                     success_value: None,
@@ -163,6 +164,7 @@ impl WalletContract {
                 });
             }
             Err(PromiseError::TooLong(_)) | Err(_) => {
+                refund_caller_deposit(&caller_deposit);
                 return PromiseOrValue::Value(ExecuteResponse {
                     success: false,
                     success_value: None,
@@ -172,6 +174,7 @@ impl WalletContract {
             Ok(value) => match serde_json::from_slice(&value) {
                 Ok(x) => x,
                 Err(_) => {
+                    refund_caller_deposit(&caller_deposit);
                     return PromiseOrValue::Value(ExecuteResponse {
                         success: false,
                         success_value: None,
@@ -192,6 +195,7 @@ impl WalletContract {
                 // incrementing the nonce, an attacker could replay this transaction
                 // indefinitely to drain the wallet via repeated refunds.
                 self.nonce = self.nonce.saturating_add(1);
+                refund_caller_deposit(&caller_deposit);
                 return PromiseOrValue::Value(ExecuteResponse {
                     success: false,
                     success_value: None,
@@ -203,12 +207,14 @@ impl WalletContract {
             // Recall that the nonce was not incremented in `inner_rlp_execute` in the case that
             // the registrar contract was called (i.e. in the case we end up inside this callback).
             self.nonce = self.nonce.saturating_add(1);
-            let ext = Self::ext(current_account_id).with_static_gas(RLP_EXECUTE_CALLBACK_GAS);
-            match action_to_promise(target, action)
-                .map(|p| p.then(ext.rlp_execute_callback(caller_deposit)))
-            {
-                Ok(p) => p,
+            match action_to_promise(target, action) {
+                Ok(p) => {
+                    let ext =
+                        Self::ext(current_account_id).with_static_gas(RLP_EXECUTE_CALLBACK_GAS);
+                    p.then(ext.rlp_execute_callback(caller_deposit))
+                }
                 Err(e) => {
+                    refund_caller_deposit(&caller_deposit);
                     return PromiseOrValue::Value(e.into());
                 }
             }
@@ -232,6 +238,7 @@ impl WalletContract {
         let maybe_storage_balance: Option<StorageBalance> =
             match env::promise_result_checked(0, 256) {
                 Err(PromiseError::Failed) => {
+                    refund_caller_deposit(&caller_deposit);
                     return PromiseOrValue::Value(ExecuteResponse {
                         success: false,
                         success_value: None,
@@ -241,6 +248,7 @@ impl WalletContract {
                     });
                 }
                 Err(PromiseError::TooLong(_)) | Err(_) => {
+                    refund_caller_deposit(&caller_deposit);
                     return PromiseOrValue::Value(ExecuteResponse {
                         success: false,
                         success_value: None,
@@ -252,6 +260,7 @@ impl WalletContract {
                 Ok(value) => match serde_json::from_slice(&value) {
                     Ok(x) => x,
                     Err(_) => {
+                        refund_caller_deposit(&caller_deposit);
                         return PromiseOrValue::Value(ExecuteResponse {
                             success: false,
                             success_value: None,
@@ -270,11 +279,10 @@ impl WalletContract {
                 // without additional actions. Note: in the standard NEP-141
                 // implementation it is impossible to have `Some` storage balance,
                 // but have it be insufficient to transact.
-                match action_to_promise(token_id, action)
-                    .map(|p| p.then(ext.rlp_execute_callback(caller_deposit)))
-                {
-                    Ok(p) => p,
+                match action_to_promise(token_id, action) {
+                    Ok(p) => p.then(ext.rlp_execute_callback(caller_deposit)),
                     Err(e) => {
+                        refund_caller_deposit(&caller_deposit);
                         return PromiseOrValue::Value(e.into());
                     }
                 }
@@ -286,6 +294,7 @@ impl WalletContract {
                 let transfer_function_call = match action {
                     near_action::Action::FunctionCall(x) => x,
                     _ => {
+                        refund_caller_deposit(&caller_deposit);
                         return PromiseOrValue::Value(ExecuteResponse {
                             success: false,
                             success_value: None,
@@ -351,18 +360,7 @@ impl WalletContract {
             },
             Err(PromiseError::Failed) => {
                 // The cross-contract call failed, refund the caller if needed
-                if let Some(CallerDeposit {
-                    account_id,
-                    yocto_near,
-                }) = caller_deposit
-                {
-                    let refund_promise = env::promise_batch_create(&account_id);
-                    env::promise_batch_action_transfer(
-                        refund_promise,
-                        NearToken::from_yoctonear(yocto_near.into()),
-                    );
-                }
-
+                refund_caller_deposit(&caller_deposit);
                 ExecuteResponse {
                     success: false,
                     success_value: None,
@@ -546,6 +544,20 @@ fn inner_rlp_execute(
         }
     };
     Ok(promise)
+}
+
+fn refund_caller_deposit(caller_deposit: &Option<CallerDeposit>) {
+    if let Some(CallerDeposit {
+        account_id,
+        yocto_near,
+    }) = caller_deposit
+    {
+        let refund_promise = env::promise_batch_create(account_id);
+        env::promise_batch_action_transfer(
+            refund_promise,
+            NearToken::from_yoctonear((*yocto_near).into()),
+        );
+    }
 }
 
 fn action_to_promise(target: AccountId, action: near_action::Action) -> Result<Promise, Error> {
