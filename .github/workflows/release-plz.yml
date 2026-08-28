@@ -1,0 +1,33 @@
+name: Release-plz
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  release-plz:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.NEARPROTOCOL_CI_PR_ACCESS }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          targets: wasm32-unknown-unknown
+
+      # Pinned to the last version that installs release-plz with
+      # taiki-e/install-action. Newer versions use cargo-binstall, which compiles
+      # from source and fails when CARGO_BUILD_TARGET is wasm32-unknown-unknown.
+      - name: Run release-plz
+        uses: release-plz/action@5ab144c9d67d4346240190d0f95ed08668677928
+        env:
+          GITHUB_TOKEN: ${{ secrets.NEARPROTOCOL_CI_PR_ACCESS }}
+          CARGO_BUILD_TARGET: wasm32-unknown-unknown

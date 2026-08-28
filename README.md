@@ -49,6 +49,13 @@ The reproducible build configuration is defined in `Cargo.toml` under `[workspac
 cargo test --workspace
 ```
 
+## Releasing
+
+Merging the release PR maintained by release-plz updates the workspace version,
+`Cargo.lock`, and `CHANGELOG.md`, then creates the corresponding `vX.Y.Z` tag.
+That tag triggers the existing release workflow, which builds and publishes the
+reproducible WASM artifacts.
+
 ## Verification
 
 Released WASM artifacts include:
