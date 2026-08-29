@@ -21,6 +21,12 @@ passed_env = []
 # Build command inside the container
 container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "--locked", "--no-abi"]
 
+# Reproducible testnet variant. The tracked script applies the testnet constants
+# inside the pinned build container, keeping the tagged source tree itself clean
+# and its NEP-330 source revision resolvable.
+[package.metadata.near.reproducible_build.variant.testnet]
+container_build_command = ["sh", "scripts/build-testnet.sh"]
+
 [dependencies]
 aurora-engine-transactions.workspace = true
 aurora-engine-types.workspace = true
