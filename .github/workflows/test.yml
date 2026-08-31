@@ -81,8 +81,11 @@ jobs:
           shared-key: "linux-1.86-build"
           cache-all-crates: true
 
-      - name: Build wallet-contract
+      - name: Build wallet-contract (mainnet)
         run: cargo near build non-reproducible-wasm --no-abi --manifest-path wallet-contract/Cargo.toml
+
+      - name: Build wallet-contract (testnet)
+        run: cargo near build non-reproducible-wasm --no-abi --manifest-path wallet-contract/Cargo.toml --features testnet
 
       - name: Build address-registrar
         run: cargo near build non-reproducible-wasm --no-abi --manifest-path address-registrar/Cargo.toml

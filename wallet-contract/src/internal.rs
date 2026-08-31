@@ -15,11 +15,12 @@ use aurora_engine_types::{H160 as Address, U256};
 use base64::Engine;
 use near_sdk::{AccountId, NearToken, env};
 
-/// The chain ID is pulled from a file to allow this contract to be easily
-/// compiled with the appropriate value for the network it will be deployed on.
 /// The chain ID for Near mainnet is [397](https://chainlist.org/chain/397)
 /// while the value for testnet is [398](https://chainlist.org/chain/398).
-pub const CHAIN_ID: u64 = std::include!("CHAIN_ID");
+#[cfg(not(feature = "testnet"))]
+pub const CHAIN_ID: u64 = 397;
+#[cfg(feature = "testnet")]
+pub const CHAIN_ID: u64 = 398;
 const U64_MAX: U256 = U256([u64::MAX, 0, 0, 0]);
 /// Only up to this amount of yoctoNear can be directly mentioned in an action,
 /// the rest should be included in the `value` field of the Ethereum transaction.

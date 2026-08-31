@@ -26,8 +26,13 @@ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/release
 ### Development Build
 
 ```bash
-# Build all contracts
+# Mainnet wallet
 cargo near build non-reproducible-wasm --manifest-path wallet-contract/Cargo.toml
+
+# Testnet wallet
+cargo near build non-reproducible-wasm --manifest-path wallet-contract/Cargo.toml --features testnet
+
+# Address registrar (the same artifact is used on both networks)
 cargo near build non-reproducible-wasm --manifest-path address-registrar/Cargo.toml
 ```
 
@@ -37,11 +42,13 @@ For production releases, use Docker-based reproducible builds per [NEP-0330](htt
 
 ```bash
 # Requires Docker
-cargo near build reproducible-wasm --manifest-path wallet-contract/Cargo.toml
+cargo near build reproducible-wasm --manifest-path wallet-contract/Cargo.toml --variant mainnet
+cargo near build reproducible-wasm --manifest-path wallet-contract/Cargo.toml --variant testnet
 cargo near build reproducible-wasm --manifest-path address-registrar/Cargo.toml
 ```
 
-The reproducible build configuration is defined in `Cargo.toml` under `[workspace.metadata.near.reproducible_build]`.
+The reproducible build configuration is defined in each contract manifest under
+`[package.metadata.near.reproducible_build]`.
 
 ## Testing
 
