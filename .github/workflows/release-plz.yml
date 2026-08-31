@@ -24,8 +24,9 @@ jobs:
           targets: wasm32-unknown-unknown
 
       # Pinned to the last version that installs release-plz with
-      # taiki-e/install-action. Newer versions use cargo-binstall, which compiles
-      # from source and fails when CARGO_BUILD_TARGET is wasm32-unknown-unknown.
+      # taiki-e/install-action. Newer versions use cargo-binstall, which inherits
+      # CARGO_BUILD_TARGET, misses the host binary for the WASM target, and falls
+      # back to a source build that cannot produce a runnable release-plz binary.
       - name: Run release-plz
         uses: release-plz/action@5ab144c9d67d4346240190d0f95ed08668677928
         env:
