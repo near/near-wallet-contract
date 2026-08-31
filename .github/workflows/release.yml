@@ -26,6 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Keep the host CLI aligned with the reproducible image pinned in both
+      # contract manifests; upgrade the CLI, image, digest, and Rust pin together.
       - name: Install cargo-near CLI
         run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/download/cargo-near-v0.21.1/cargo-near-installer.sh | sh
 

@@ -12,6 +12,9 @@ crate-type = ["cdylib", "rlib"]
 # NEP-330 Reproducible Build Configuration
 # See: https://github.com/near/NEPs/blob/master/neps/nep-0330.md
 [package.metadata.near.reproducible_build]
+# This is the lowest SourceScan-published pair satisfying the Rust 1.93 floor.
+# SourceScan has no cargo-near 0.22 / Rust 1.95 image; advance these pins with
+# the next deliberate contract toolchain upgrade.
 # Docker image for reproducible builds
 image = "sourcescan/cargo-near:0.21.1-rust-1.93.0"
 # Image digest for pinned reproducibility
