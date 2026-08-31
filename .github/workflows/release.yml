@@ -24,7 +24,7 @@ jobs:
     needs: [test]
     runs-on: warp-ubuntu-latest-x64-4x
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       # Keep the host CLI aligned with the reproducible image pinned in both
       # contract manifests; upgrade the CLI, image, digest, and Rust pin together.
@@ -70,7 +70,7 @@ jobs:
           cat checksums.sha256
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: wasm-contracts
           path: artifacts/
@@ -79,31 +79,31 @@ jobs:
       # Generate attestations for provenance
       # Note: Attestations for private repos require GitHub Enterprise Cloud
       - name: Attest mainnet wallet-contract
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
         continue-on-error: true
         with:
           subject-path: artifacts/eth_wallet_contract_mainnet.wasm
 
       - name: Attest mainnet address-registrar
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
         continue-on-error: true
         with:
           subject-path: artifacts/eth_address_registrar_mainnet.wasm
 
       - name: Attest testnet wallet-contract
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
         continue-on-error: true
         with:
           subject-path: artifacts/eth_wallet_contract_testnet.wasm
 
       - name: Attest testnet address-registrar
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
         continue-on-error: true
         with:
           subject-path: artifacts/eth_address_registrar_testnet.wasm
 
       - name: Attest checksums
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
         continue-on-error: true
         with:
           subject-path: artifacts/checksums.sha256
@@ -115,7 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: wasm-contracts
           path: artifacts/
@@ -131,10 +131,10 @@ jobs:
       # Create the release as a draft so assets can be attached. Under
       # immutable-releases, asset uploads are rejected after publish; the
       # next step transitions the draft to published (a legal mutation).
-      # `softprops/action-gh-release@v2` documents this pattern for
+      # `softprops/action-gh-release@v3` documents this pattern for
       # immutable repos.
       - name: Create release (as draft)
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           draft: true
           # Pre-release if the tag has a semver hyphen suffix (e.g. v0.1.1-rc.1).
