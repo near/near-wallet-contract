@@ -259,12 +259,15 @@ async fn build_contract<P: AsRef<Path>>(
     base_dir: P,
     package_name: &str,
 ) -> anyhow::Result<Vec<u8>> {
-    let output = Command::new("cargo")
+    let mut command = Command::new("cargo");
+    command
         .env("RUSTFLAGS", "-C link-arg=-s")
         .current_dir(base_dir.as_ref())
-        .args(["build", "--target", "wasm32-unknown-unknown", "--release"])
-        .output()
-        .await?;
+        .args(["build", "--target", "wasm32-unknown-unknown", "--release"]);
+    if cfg!(feature = "testnet") && package_name == PACKAGE_NAME {
+        command.args(["--features", "testnet"]);
+    }
+    let output = command.output().await?;
 
     if !output.status.success() {
         anyhow::bail!("Build failed: {}", String::from_utf8_lossy(&output.stderr));

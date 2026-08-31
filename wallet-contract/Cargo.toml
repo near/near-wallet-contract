@@ -9,6 +9,11 @@ license.workspace = true
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# Select the EVM chain ID used by the testnet wallet artifact. Mainnet remains
+# the default so ordinary builds keep their production behavior.
+testnet = []
+
 # NEP-330 Reproducible Build Configuration
 # See: https://github.com/near/NEPs/blob/master/neps/nep-0330.md
 [package.metadata.near.reproducible_build]
@@ -29,11 +34,10 @@ container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "-
 [package.metadata.near.reproducible_build.variant.mainnet]
 container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "--locked", "--no-abi"]
 
-# Reproducible testnet variant. The tracked script applies the testnet constants
-# inside the pinned build container, keeping the tagged source tree itself clean
-# and its NEP-330 source revision resolvable.
+# Keep the network selection in the recorded cargo-near command so NEP-330
+# metadata contains everything needed to reproduce the testnet artifact.
 [package.metadata.near.reproducible_build.variant.testnet]
-container_build_command = ["sh", "scripts/build-testnet.sh"]
+container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "--locked", "--no-abi", "--features", "testnet"]
 
 [dependencies]
 aurora-engine-transactions.workspace = true
