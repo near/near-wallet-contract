@@ -1,0 +1,18 @@
+[workspace]
+publish = false
+git_only = true
+git_release_enable = false
+git_tag_name = "v{{ version }}"
+dependencies_update = false
+semver_check = false
+changelog_update = false
+
+[[package]]
+name = "eth-wallet-contract"
+changelog_update = true
+changelog_path = "./CHANGELOG.md"
+changelog_include = ["eth-address-registrar"]
+
+[[package]]
+name = "eth-address-registrar"
+release = false
