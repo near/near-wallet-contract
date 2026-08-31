@@ -1,6 +1,6 @@
 [workspace.package]
 authors = ["Aurora Labs <hello@aurora.dev>", "NEAR <hello@near.org>"]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 homepage = "https://github.com/near/near-wallet-contract"
 repository = "https://github.com/near/near-wallet-contract"
