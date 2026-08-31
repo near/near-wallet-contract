@@ -21,6 +21,11 @@ passed_env = []
 # Build command inside the container
 container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "--locked", "--no-abi"]
 
+# Name the production variant explicitly so release workflow invocations cannot
+# silently change meaning if the default build configuration changes later.
+[package.metadata.near.reproducible_build.variant.mainnet]
+container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "--locked", "--no-abi"]
+
 # Reproducible testnet variant. The tracked script applies the testnet constants
 # inside the pinned build container, keeping the tagged source tree itself clean
 # and its NEP-330 source revision resolvable.

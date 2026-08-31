@@ -34,7 +34,7 @@ jobs:
 
       # ========== MAINNET BUILD ==========
       - name: Build wallet-contract (mainnet)
-        run: cargo near build reproducible-wasm --manifest-path wallet-contract/Cargo.toml
+        run: cargo near build reproducible-wasm --manifest-path wallet-contract/Cargo.toml --variant mainnet
 
       - name: Build address-registrar (mainnet)
         run: cargo near build reproducible-wasm --manifest-path address-registrar/Cargo.toml
