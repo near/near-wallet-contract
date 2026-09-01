@@ -1,0 +1,57 @@
+name: Deploy Global Wallet Contracts
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Immutable stable release tag (for example, v0.1.2)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  attestations: read
+
+concurrency:
+  group: deploy-global-wallet-contract
+  cancel-in-progress: false
+
+jobs:
+  validate-release:
+    name: Validate release
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Require immutable stable tag on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          [[ "$WORKFLOW_REF" == refs/heads/main ]]
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            --jq 'select(.draft == false and .prerelease == false and .immutable == true)' \
+            >/dev/null
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          git merge-base --is-ancestor "$(git rev-list -n 1 "$RELEASE_TAG")" origin/main
+
+  deploy-testnet:
+    needs: validate-release
+    uses: ./.github/workflows/deploy-global-contract-network.yml
+    with:
+      network: testnet
+      release_tag: ${{ inputs.release_tag }}
+    secrets: inherit
+
+  deploy-mainnet:
+    needs: deploy-testnet
+    uses: ./.github/workflows/deploy-global-contract-network.yml
+    with:
+      network: mainnet
+      release_tag: ${{ inputs.release_tag }}
+    secrets: inherit

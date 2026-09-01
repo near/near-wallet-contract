@@ -1,0 +1,88 @@
+name: Deploy global wallet contract to one network
+
+on:
+  workflow_call:
+    inputs:
+      network:
+        description: near-cli network name; also the GitHub environment name
+        required: true
+        type: string
+      release_tag:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  attestations: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.network }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.network }}
+    env:
+      NETWORK: ${{ inputs.network }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      WASM: eth_wallet_contract_${{ inputs.network }}.wasm
+      NEAR_CLI_VERSION: 0.30.0
+    steps:
+      - name: Install near CLI
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            "https://github.com/near/near-cli-rs/releases/download/v$NEAR_CLI_VERSION/near-cli-rs-installer.sh" | sh
+
+      - name: Download and verify artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "$WASM" --pattern checksums.sha256
+          grep -F " $WASM" checksums.sha256 | sha256sum --check -
+          gh attestation verify checksums.sha256 --repo "$GITHUB_REPOSITORY"
+          gh attestation verify "$WASM" --repo "$GITHUB_REPOSITORY"
+
+      - name: Compute global contract hash
+        run: |
+          # Global contract hash = base58(sha256). Reuse the verified digest from
+          # checksums.sha256 rather than re-hashing the file.
+          hash=$(python3 -c '
+          import sys
+          ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+          digest = bytes.fromhex(sys.argv[1])
+          n, out = int.from_bytes(digest, "big"), ""
+          while n:
+              n, r = divmod(n, 58)
+              out = ALPHABET[r] + out
+          print("1" * (len(digest) - len(digest.lstrip(b"\0"))) + out)
+          ' "$(grep -F " $WASM" checksums.sha256 | cut -c1-64)")
+          echo "global_contract_hash=$hash"
+          echo "GLOBAL_HASH=$hash" >> "$GITHUB_ENV"
+
+      - name: Check for existing deployment
+        id: existing
+        run: |
+          if near --quiet contract download-wasm global-contract-by-code-hash "$GLOBAL_HASH" \
+               save-to-file existing.wasm network-config "$NETWORK" now
+          then
+            cmp "$WASM" existing.wasm
+            echo "Global contract $GLOBAL_HASH is already deployed on $NETWORK; skipping."
+            echo "deployed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy
+        if: steps.existing.outputs.deployed != 'true'
+        env:
+          SIGNER_ACCOUNT: ${{ vars.NEAR_SIGNER_ACCOUNT_ID }}
+          SIGNER_KEY: ${{ secrets.NEAR_SIGNER_PRIVATE_KEY }}
+        run: |
+          near --quiet contract deploy-as-global use-file "$WASM" \
+            as-global-hash "$SIGNER_ACCOUNT" network-config "$NETWORK" \
+            sign-with-plaintext-private-key "$SIGNER_KEY" send --wait-until final
+
+      - name: Verify on-chain bytes
+        run: |
+          near --quiet contract download-wasm global-contract-by-code-hash "$GLOBAL_HASH" \
+            save-to-file onchain.wasm network-config "$NETWORK" now
+          cmp "$WASM" onchain.wasm

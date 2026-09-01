@@ -63,6 +63,11 @@ Merging the release PR maintained by release-plz updates the workspace version,
 That tag triggers the existing release workflow, which builds and publishes the
 reproducible WASM artifacts.
 
+Publishing the released wallet WASMs as immutable global contracts is a separate
+manual workflow with testnet-first and protected-mainnet gates. See
+[Global wallet contract deployment](docs/global-contract-deployment.md) for the
+environment setup and safety checks.
+
 ## Verification
 
 Released WASM artifacts include:
