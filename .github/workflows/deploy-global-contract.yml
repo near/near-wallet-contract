@@ -1,0 +1,141 @@
+name: Deploy Global Wallet Contract
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Immutable stable release tag (for example, v0.1.2)
+        required: true
+        type: string
+      network:
+        description: Network to deploy
+        required: true
+        type: choice
+        options:
+          - testnet
+          - mainnet
+
+permissions:
+  contents: read
+  attestations: read
+
+concurrency:
+  group: deploy-global-wallet-${{ inputs.network }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.network }}
+    env:
+      NETWORK: ${{ inputs.network }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      RPC_URL: https://rpc.${{ inputs.network }}.near.org
+      WASM: eth_wallet_contract_${{ inputs.network }}.wasm
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            --jq '.draft == false and .prerelease == false and .immutable == true')" == true ]]
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          git merge-base --is-ancestor "$(git rev-list -n 1 "$RELEASE_TAG")" origin/main
+
+      - name: Install near CLI
+        env:
+          NEAR_CLI_VERSION: 0.30.0
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            "https://github.com/near/near-cli-rs/releases/download/v$NEAR_CLI_VERSION/near-cli-rs-installer.sh" | sh
+
+      - name: Download and verify artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          artifact_dir="$RUNNER_TEMP/global-contract"
+          mkdir -p "$artifact_dir"
+          gh release download "$RELEASE_TAG" --dir "$artifact_dir" \
+            --pattern "$WASM" --pattern checksums.sha256
+          (cd "$artifact_dir" && \
+            awk -v wasm="$WASM" '$2 == wasm { print }' checksums.sha256 | sha256sum --check -)
+          gh attestation verify "$artifact_dir/checksums.sha256" --repo "$GITHUB_REPOSITORY"
+          gh attestation verify "$artifact_dir/$WASM" --repo "$GITHUB_REPOSITORY"
+
+          digest="$(awk -v wasm="$WASM" '$2 == wasm { print $1 }' "$artifact_dir/checksums.sha256")"
+          [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
+          global_hash="$(python3 -c '
+          import sys
+          alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+          digest = bytes.fromhex(sys.argv[1])
+          number, encoded = int.from_bytes(digest, "big"), ""
+          while number:
+              number, remainder = divmod(number, 58)
+              encoded = alphabet[remainder] + encoded
+          print("1" * (len(digest) - len(digest.lstrip(b"\0"))) + encoded)
+          ' "$digest")"
+          echo "artifact_sha256=$digest"
+          echo "global_contract_hash=$global_hash"
+          echo "GLOBAL_HASH=$global_hash" >> "$GITHUB_ENV"
+
+      - name: Check for existing deployment
+        id: existing
+        run: |
+          artifact_dir="$RUNNER_TEMP/global-contract"
+          response="$artifact_dir/global-code.json"
+          [[ "$(curl --silent --show-error --fail --retry 3 "$RPC_URL/status" | \
+            jq -er '.chain_id')" == "$NETWORK" ]]
+
+          payload="$(jq -nc --arg hash "$GLOBAL_HASH" '{
+            jsonrpc: "2.0", id: "global-code", method: "query",
+            params: {request_type: "view_global_contract_code", finality: "final", code_hash: $hash}
+          }')"
+          curl --silent --show-error --fail-with-body --retry 3 --retry-all-errors \
+            --connect-timeout 10 --max-time 60 --header 'Content-Type: application/json' \
+            --data "$payload" --output "$response" "$RPC_URL"
+          jq -e . "$response" >/dev/null
+
+          if jq -e '.result.code_base64 | type == "string"' "$response" >/dev/null; then
+            jq -er '.result.code_base64' "$response" | base64 --decode > "$artifact_dir/existing.wasm"
+            cmp --silent "$artifact_dir/$WASM" "$artifact_dir/existing.wasm"
+            echo "Global contract $GLOBAL_HASH is already deployed on $NETWORK; skipping."
+            echo "deployed=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$(jq -r '.error.cause.name // empty' "$response")" == NO_GLOBAL_CONTRACT_CODE ]]; then
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+          else
+            jq -c '.error // .' "$response" >&2
+            exit 1
+          fi
+
+      - name: Deploy
+        if: steps.existing.outputs.deployed != 'true'
+        env:
+          SIGNER_ACCOUNT: ${{ vars.NEAR_SIGNER_ACCOUNT_ID }}
+          SIGNER_KEY: ${{ secrets.NEAR_SIGNER_PRIVATE_KEY }}
+        run: |
+          : "${SIGNER_ACCOUNT:?environment variable NEAR_SIGNER_ACCOUNT_ID is required}"
+          : "${SIGNER_KEY:?environment secret NEAR_SIGNER_PRIVATE_KEY is required}"
+          near --quiet contract deploy-as-global use-file "$RUNNER_TEMP/global-contract/$WASM" \
+            as-global-hash "$SIGNER_ACCOUNT" network-config "$NETWORK" \
+            sign-with-plaintext-private-key "$SIGNER_KEY" send --wait-until final
+
+      - name: Verify on-chain bytes
+        run: |
+          for _ in {1..5}; do
+            if near --quiet contract download-wasm global-contract-by-code-hash "$GLOBAL_HASH" \
+                 save-to-file "$RUNNER_TEMP/onchain.wasm" network-config "$NETWORK" now && \
+               cmp --silent "$RUNNER_TEMP/global-contract/$WASM" "$RUNNER_TEMP/onchain.wasm"
+            then
+              echo "Global contract $GLOBAL_HASH is available on $NETWORK and matches the release artifact."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Global contract verification failed." >&2
+          exit 1
