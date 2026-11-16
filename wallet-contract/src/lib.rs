@@ -7,7 +7,7 @@ use crate::{
 use error::{UnsupportedAction, UserError};
 use near_contract_standards::storage_management::StorageBalance;
 use near_sdk::{
-    AccountId, Allowance, Gas, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue, env,
+    AccountId, Allowance, Gas, NearToken, Promise, PromiseError, PromiseOrValue, env,
     json_types::U64, near,
 };
 use types::{EthEmulationKind, TransactionKind};
@@ -120,7 +120,7 @@ impl WalletContract {
         let predecessor_account_id = env::predecessor_account_id();
         let result = inner_rlp_execute(
             current_account_id.clone(),
-            predecessor_account_id,
+            predecessor_account_id.clone(),
             target,
             tx_bytes_b64,
             &mut self.nonce,
@@ -131,7 +131,10 @@ impl WalletContract {
                 self.has_in_flight_tx = true;
                 PromiseOrValue::Promise(promise)
             }
-            Err(Error::Relayer(_)) if env::signer_account_id() == current_account_id => {
+            Err(Error::Relayer(_))
+                if env::signer_account_id() == current_account_id
+                    && predecessor_account_id == current_account_id =>
+            {
                 let promise = create_ban_relayer_promise(current_account_id);
                 self.has_in_flight_tx = true;
                 PromiseOrValue::Promise(promise)
@@ -601,15 +604,12 @@ fn action_to_promise(target: AccountId, action: near_action::Action) -> Result<P
 
 fn create_ban_relayer_promise(current_account_id: AccountId) -> Promise {
     let pk = env::signer_account_pk();
-    Promise::new(current_account_id)
-        .delete_key(pk)
-        .function_call_weight(
-            "ban_relayer".to_string(),
-            Vec::new(),
-            NearToken::from_yoctonear(0),
-            Gas::from_tgas(1),
-            GasWeight(1),
-        )
+    let delete_promise = Promise::new(current_account_id.clone()).delete_key(pk);
+    let ext = WalletContract::ext(current_account_id)
+        .with_static_gas(Gas::from_tgas(1))
+        .with_unused_gas_weight(1);
+    let ban_response = ext.ban_relayer();
+    delete_promise.then(ban_response)
 }
 
 // This trait is used in the code above, but the `ext_contract`
